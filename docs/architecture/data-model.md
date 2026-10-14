@@ -312,11 +312,10 @@ durante la implementación. No representan migraciones ejecutadas.
 - Cada evidencia pertenece obligatoriamente a un perfil.
 - Si una evidencia está asociada a una experiencia, ambas deben pertenecer
   al mismo perfil.
-- La eliminación de una experiencia podrá desvincular la evidencia
-  mediante ON DELETE SET NULL, siempre que la evidencia pueda conservarse
-  independientemente y siga siendo útil.
-- Si la evidencia no puede conservarse sin la experiencia, deberá aplicarse
-  una política explícita distinta, definida antes de las migraciones.
+- La eliminación de una experiencia se impedirá mientras existan evidencias
+  asociadas, mediante ON DELETE RESTRICT.
+- Para eliminar una experiencia con evidencias, estas deberán gestionarse
+  explícitamente antes de solicitar la eliminación.
 - Eliminar metadatos de la base de datos no elimina automáticamente
   el archivo almacenado.
 - La eliminación de archivos debe gestionarse mediante un proceso
@@ -328,8 +327,9 @@ durante la implementación. No representan migraciones ejecutadas.
 
 - Cada perfil tendrá como máximo un portafolio en el MVP.
 - La relación entre portafolio y perfil deberá impedir registros huérfanos.
-- La eliminación del perfil podrá eliminar el registro del portafolio
-  mediante ON DELETE CASCADE dentro del proceso autorizado de eliminación.
+- La eliminación del perfil se impedirá mientras exista un portafolio
+  asociado, mediante ON DELETE RESTRICT.
+- El portafolio deberá gestionarse explícitamente antes de eliminar el perfil.
 - Despublicar un portafolio no equivale a eliminarlo.
 - La publicación del portafolio no debe hacer públicas automáticamente
   las experiencias ni las evidencias privadas.
