@@ -28,3 +28,6 @@ Thumbs.db
 # Generated files
 *.log
 *.tmp
+
+# Local backups
+*.bak
