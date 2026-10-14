@@ -1,4 +1,4 @@
-﻿# TRAZA — Modelo de datos del MVP
+# TRAZA — Modelo de datos del MVP
 
 ## 1. Objetivo y alcance
 
@@ -282,3 +282,80 @@ validado, sin simular verificaciones oficiales.
 Propuesta conceptual ampliada. Todavía no es un esquema SQL definitivo.
 Las decisiones pendientes deben revisarse antes de implementar modelos,
 migraciones, políticas de acceso o integración con almacenamiento.
+
+## 9. Reglas de eliminación e integridad referencial
+
+Las siguientes reglas son decisiones de diseño para el MVP. Deben
+traducirse a restricciones de base de datos y lógica de aplicación
+durante la implementación. No representan migraciones ejecutadas.
+
+### 9.1. Perfiles y experiencias
+
+- Una experiencia pertenece obligatoriamente a un perfil.
+- La eliminación de un perfil requiere un proceso explícito que contemple
+  experiencias, evidencias, portafolio, archivos y datos asociados.
+- No se permitirá una eliminación parcial que deje registros huérfanos.
+- Antes de implementar el borrado de una cuenta se definirán las
+  obligaciones de conservación, anonimización y eliminación aplicables.
+
+### 9.2. Experiencias y competencias
+
+- La eliminación de una experiencia debe eliminar sus asociaciones
+  en experience_competencies mediante ON DELETE CASCADE.
+- La eliminación de una competencia del catálogo debe impedirse mientras
+  existan asociaciones, salvo que exista un proceso controlado de
+  sustitución o eliminación de dichas asociaciones.
+- Las asociaciones deben conservar su integridad referencial.
+
+### 9.3. Evidencias y almacenamiento
+
+- Cada evidencia pertenece obligatoriamente a un perfil.
+- Si una evidencia está asociada a una experiencia, ambas deben pertenecer
+  al mismo perfil.
+- La eliminación de una experiencia podrá desvincular la evidencia
+  mediante ON DELETE SET NULL, siempre que la evidencia pueda conservarse
+  independientemente y siga siendo útil.
+- Si la evidencia no puede conservarse sin la experiencia, deberá aplicarse
+  una política explícita distinta, definida antes de las migraciones.
+- Eliminar metadatos de la base de datos no elimina automáticamente
+  el archivo almacenado.
+- La eliminación de archivos debe gestionarse mediante un proceso
+  controlado, con reintentos y tratamiento de fallos.
+- Los archivos privados no deben quedar accesibles después de revocar
+  los permisos correspondientes.
+
+### 9.4. Portafolios
+
+- Cada perfil tendrá como máximo un portafolio en el MVP.
+- La relación entre portafolio y perfil deberá impedir registros huérfanos.
+- La eliminación del perfil podrá eliminar el registro del portafolio
+  mediante ON DELETE CASCADE dentro del proceso autorizado de eliminación.
+- Despublicar un portafolio no equivale a eliminarlo.
+- La publicación del portafolio no debe hacer públicas automáticamente
+  las experiencias ni las evidencias privadas.
+
+### 9.5. Certificaciones y validaciones futuras
+
+- Las certificaciones y validaciones no se eliminarán accidentalmente
+  mediante cascadas generales.
+- Sus reglas de conservación y eliminación se definirán según su alcance,
+  procedencia y obligaciones aplicables.
+- Cuando corresponda, se utilizará un proceso explícito de eliminación,
+  anonimización o conservación restringida.
+- La plataforma no debe presentar registros conservados como verificaciones
+  vigentes si su estado o validez ha cambiado.
+
+### 9.6. Reglas generales
+
+- Las claves foráneas deberán definir explícitamente su comportamiento
+  ante eliminaciones: CASCADE, RESTRICT, SET NULL o una alternativa
+  justificada.
+- SET NULL solo será válido en relaciones opcionales.
+- Las operaciones que afecten varios registros deberán ser transaccionales
+  cuando correspondan a la misma base de datos.
+- Las operaciones sobre archivos externos deberán contemplar fallos
+  parciales, dado que no comparten una transacción con PostgreSQL.
+- Los identificadores no sustituyen las comprobaciones de propiedad
+  y autorización del servidor.
+- Las políticas definitivas se verificarán mediante pruebas automatizadas
+  antes de habilitar la eliminación de datos reales.
