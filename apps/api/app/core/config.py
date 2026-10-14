@@ -8,6 +8,7 @@ class Settings(BaseSettings):
         "API para gestionar trayectorias profesionales, "
         "competencias y evidencias."
     )
+    database_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
