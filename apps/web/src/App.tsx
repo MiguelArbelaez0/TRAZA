@@ -56,7 +56,13 @@ const initialSkills = [
   { name: "Trabajo colaborativo", category: "Transversal", level: 85 },
 ];
 
-function App() {
+type AppProps = {
+  authenticatedEmail?: string;
+  authenticatedName?: string;
+  onLogout?: () => void;
+};
+
+function App({ authenticatedEmail, authenticatedName, onLogout }: AppProps = {}) {
   const [section, setSection] = useState<Section>("Inicio");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -177,8 +183,8 @@ function App() {
           <div className="user-mini">
             <div className="avatar avatar-small">MA</div>
             <div className="user-mini-copy">
-              <strong>Mi perfil</strong>
-              <small>Estudiante</small>
+              <strong>{authenticatedName || "Mi perfil"}</strong>
+              <small>{authenticatedEmail || "Estudiante"}</small>
             </div>
             <ChevronDown size={16} className="muted-icon" />
           </div>
@@ -198,7 +204,11 @@ function App() {
             <button className="icon-button notification-button" aria-label="Notificaciones" onClick={() => notify("No tienes notificaciones nuevas.")}>
               <Bell size={19} /><i />
             </button>
-            <div className="avatar">MA</div>
+            <div className="auth-user-chip" title={authenticatedEmail}>
+              <div className="avatar">{(authenticatedName || authenticatedEmail || "U").slice(0, 2).toUpperCase()}</div>
+              <span className="auth-user-email">{authenticatedName || authenticatedEmail}</span>
+            </div>
+            {onLogout && <button className="auth-logout-button" onClick={onLogout}>Cerrar sesión</button>}
           </div>
         </header>
 
@@ -457,4 +467,3 @@ function ExperienceRow({ experience }: { experience: Experience }) {
 }
 
 export default App;
-
