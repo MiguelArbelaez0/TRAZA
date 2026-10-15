@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowDownRight, ArrowRight, Award,
   Bell, BriefcaseBusiness, Check, ChevronDown,
@@ -56,13 +56,23 @@ const initialSkills = [
   { name: "Trabajo colaborativo", category: "Transversal", level: 85 },
 ];
 
+import { authApi, type AuthProfile } from "./authApi";
+
 type AppProps = {
   authenticatedEmail?: string;
   authenticatedName?: string;
+  accessToken?: string;
+  onProfileUpdated?: (profile: AuthProfile) => void;
   onLogout?: () => void;
 };
 
-function App({ authenticatedEmail, authenticatedName, onLogout }: AppProps = {}) {
+function App({
+  authenticatedEmail,
+  authenticatedName,
+  accessToken,
+  onProfileUpdated,
+  onLogout,
+}: AppProps = {}) {
   const [section, setSection] = useState<Section>("Inicio");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -74,6 +84,105 @@ function App({ authenticatedEmail, authenticatedName, onLogout }: AppProps = {})
   const [experienceOrganization, setExperienceOrganization] = useState("");
   const [skillName, setSkillName] = useState("");
   const [notice, setNotice] = useState("");
+
+  const [profileData, setProfileData] = useState<AuthProfile | null>(null);
+  const [profileForm, setProfileForm] = useState<Omit<AuthProfile, "id">>({
+    display_name: authenticatedName || "",
+    headline: "",
+    professional_summary: "",
+    location: "",
+  });
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [profileFeedback, setProfileFeedback] = useState("");
+  const [profileFeedbackType, setProfileFeedbackType] = useState<"success" | "error">("success");
+
+
+
+  useEffect(() => {
+    if (section !== "Mi perfil" || !accessToken) return;
+
+    let cancelled = false;
+    setProfileLoading(true);
+    setProfileLoaded(false);
+    setProfileFeedback("");
+
+    authApi.getProfile(accessToken)
+      .then((profile) => {
+        if (cancelled) return;
+        setProfileData(profile);
+        setProfileForm({
+          display_name: profile.display_name || "",
+          headline: profile.headline || "",
+          professional_summary: profile.professional_summary || "",
+          location: profile.location || "",
+        });
+        setProfileLoaded(true);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setProfileFeedback(
+          error instanceof Error
+            ? error.message
+            : "No fue posible cargar el perfil. Comprueba tu conexi?n e int?ntalo de nuevo."
+        );
+        setProfileFeedbackType("error");
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [section, accessToken]);
+
+  async function saveProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !profileLoaded) return;
+
+    const name = profileForm.display_name.trim();
+    if (name.length < 2) {
+      setProfileFeedback("El nombre debe tener al menos 2 caracteres.");
+      setProfileFeedbackType("error");
+      return;
+    }
+
+    setProfileSaving(true);
+    setProfileFeedback("");
+
+    try {
+      const updated = await authApi.updateProfile(accessToken, {
+        display_name: name,
+        headline: profileForm.headline.trim() || null,
+        professional_summary: profileForm.professional_summary.trim() || null,
+        location: profileForm.location.trim() || null,
+      });
+
+      setProfileData(updated);
+      setProfileForm({
+        display_name: updated.display_name,
+        headline: updated.headline || "",
+        professional_summary: updated.professional_summary || "",
+        location: updated.location || "",
+      });
+      onProfileUpdated?.(updated);
+      setProfileEditing(false);
+      setProfileFeedback("Perfil guardado correctamente.");
+      setProfileFeedbackType("success");
+    } catch (error: unknown) {
+      setProfileFeedback(
+        error instanceof Error
+          ? error.message
+          : "No fue posible guardar los cambios. Int?ntalo de nuevo."
+      );
+      setProfileFeedbackType("error");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
 
   const filteredExperiences = useMemo(
     () => experiences.filter((item) =>
@@ -317,30 +426,167 @@ function App({ authenticatedEmail, authenticatedName, onLogout }: AppProps = {})
               <section className="panel profile-card">
                 <div className="profile-cover"><div className="cover-orb" /></div>
                 <div className="profile-details">
-                  <div className="avatar avatar-profile">MA</div>
-                  <span className="status-label"><span /> Perfil de demostración</span>
-                  <h2>Mi perfil profesional</h2>
-                  <p className="profile-role">Estudiante · Ingeniería de Sistemas</p>
-                  <p className="profile-description">Este espacio te permitirá presentar tu trayectoria, tus intereses, tus habilidades y los proyectos que demuestran lo que sabes hacer.</p>
-                  <div className="profile-tags"><span>Desarrollo de software</span><span>Tecnología</span><span>Aprendizaje continuo</span></div>
-                  <button className="primary-button" onClick={() => notify("La edición y el guardado en backend se habilitarán en una siguiente fase.")}>Editar perfil <ArrowRight size={16} /></button>
+                  <div className="avatar avatar-profile">
+                    {(profileData?.display_name || authenticatedName || "U")
+                      .trim()
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0] || "")
+                      .join("")
+                      .toUpperCase()}
+                  </div>
+                  <span className="status-label">
+                    <span /> {profileLoaded ? "Perfil actualizado" : "Mi perfil profesional"}
+                  </span>
+                  <h2>{profileData?.display_name || authenticatedName || "Mi perfil profesional"}</h2>
+                  <p className="profile-role">
+                    {profileData?.headline || "A?ade tu titular profesional"}
+                  </p>
+                  <p className="profile-description">
+                    {profileData?.professional_summary || "Presenta tu trayectoria, tus intereses y los proyectos que demuestran lo que sabes hacer."}
+                  </p>
+                  {profileData?.location && (
+                    <p className="profile-role">{profileData.location}</p>
+                  )}
+                  <div className="profile-tags">
+                    <span>Desarrollo de software</span>
+                    <span>Competencias</span>
+                    <span>Aprendizaje continuo</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => {
+                      setProfileFeedback("");
+                      setProfileEditing(true);
+                    }}
+                    disabled={profileLoading || !profileLoaded}
+                  >
+                    Editar perfil <ArrowRight size={16} />
+                  </button>
                 </div>
               </section>
+
               <section className="panel profile-progress">
-                <div className="panel-heading"><div><h3>Estado del perfil</h3><p>Pasos para completar tu presentación</p></div></div>
-                {[
-                  ["Información básica", true],
-                  ["Experiencias registradas", experiences.length > 0],
-                  ["Competencias identificadas", skills.length > 0],
-                  ["Evidencias vinculadas", false],
-                  ["Portafolio publicado", false],
-                ].map(([label, done]) => (
-                  <div className="checklist-row" key={String(label)}>
-                    <span className={`check-circle ${done ? "checked" : ""}`}>{done ? <Check size={14} /> : <span />}</span>
-                    <span>{String(label)}</span>
-                    <small>{done ? "Listo" : "Pendiente"}</small>
+                <div className="panel-heading">
+                  <div>
+                    <h3>{profileEditing ? "Editar informaci?n" : "Estado del perfil"}</h3>
+                    <p>{profileEditing ? "Actualiza tus datos profesionales" : "Pasos para completar tu presentaci?n"}</p>
                   </div>
-                ))}
+                </div>
+
+                {profileLoading && <p role="status">Cargando perfil...</p>}
+
+                {!profileLoading && !profileLoaded && (
+                  <p role="alert" className="profile-feedback error">
+                    {profileFeedback || "No se pudo cargar el perfil."}
+                  </p>
+                )}
+
+                {profileLoaded && profileEditing && (
+                  <form className="inline-form profile-edit-form" onSubmit={saveProfile}>
+                    <label>
+                      Nombre completo *
+                      <input
+                        required
+                        minLength={2}
+                        maxLength={160}
+                        value={profileForm.display_name}
+                        onChange={(event) => setProfileForm({ ...profileForm, display_name: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Titular profesional
+                      <input
+                        maxLength={200}
+                        placeholder="Ej. Desarrollador de software"
+                        value={profileForm.headline || ""}
+                        onChange={(event) => setProfileForm({ ...profileForm, headline: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Ubicaci?n
+                      <input
+                        maxLength={160}
+                        placeholder="Ciudad, pa?s"
+                        value={profileForm.location || ""}
+                        onChange={(event) => setProfileForm({ ...profileForm, location: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Resumen profesional
+                      <textarea
+                        rows={5}
+                        maxLength={5000}
+                        placeholder="Describe tu experiencia, tus intereses y tus objetivos profesionales."
+                        value={profileForm.professional_summary || ""}
+                        onChange={(event) => setProfileForm({ ...profileForm, professional_summary: event.target.value })}
+                      />
+                    </label>
+                    {profileFeedback && (
+                      <p
+                        role={profileFeedbackType === "error" ? "alert" : "status"}
+                        className={`profile-feedback ${profileFeedbackType}`}
+                      >
+                        {profileFeedback}
+                      </p>
+                    )}
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        disabled={profileSaving}
+                        onClick={() => {
+                          if (profileData) {
+                            setProfileForm({
+                              display_name: profileData.display_name || "",
+                              headline: profileData.headline || "",
+                              professional_summary: profileData.professional_summary || "",
+                              location: profileData.location || "",
+                            });
+                          }
+                          setProfileEditing(false);
+                          setProfileFeedback("");
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="primary-button"
+                        disabled={profileSaving || !accessToken}
+                      >
+                        {profileSaving ? "Guardando..." : "Guardar cambios"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {profileLoaded && !profileEditing && (
+                  <>
+                    {profileFeedback && (
+                      <p role="status" className={`profile-feedback ${profileFeedbackType}`}>
+                        {profileFeedback}
+                      </p>
+                    )}
+                    {[
+                      ["Informaci?n b?sica", Boolean(profileData?.display_name)],
+                      ["Titular profesional", Boolean(profileData?.headline)],
+                      ["Resumen profesional", Boolean(profileData?.professional_summary)],
+                      ["Ubicaci?n", Boolean(profileData?.location)],
+                      ["Experiencias registradas", experiences.length > 0],
+                      ["Competencias identificadas", skills.length > 0],
+                    ].map(([label, done]) => (
+                      <div className="checklist-row" key={String(label)}>
+                        <span className={`check-circle ${done ? "checked" : ""}`}>
+                          {done ? <Check size={14} /> : <span />}
+                        </span>
+                        <span>{String(label)}</span>
+                        <small>{done ? "Listo" : "Pendiente"}</small>
+                      </div>
+                    ))}
+                  </>
+                )}
               </section>
             </div>
           )}

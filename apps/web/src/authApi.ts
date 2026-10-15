@@ -27,15 +27,16 @@ const API_URL = (
 
 async function request<T>(
   path: string,
-  body?: Record<string, string>,
+  body?: Record<string, string | null>,
   token?: string,
+  method: "GET" | "POST" | "PATCH" = body ? "POST" : "GET",
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
-      method: body ? "POST" : "GET",
+      method,
       headers: {
         Accept: "application/json",
         ...(body ? { "Content-Type": "application/json" } : {}),
@@ -105,5 +106,13 @@ export const authApi = {
 
   me(token: string) {
     return request<AuthResponse>("/api/auth/me", undefined, token);
+  },
+
+  getProfile(token: string) {
+    return request<AuthProfile>("/api/profile/me", undefined, token);
+  },
+
+  updateProfile(token: string, profile: Omit<AuthProfile, "id">) {
+    return request<AuthProfile>("/api/profile/me", profile, token, "PATCH");
   },
 };

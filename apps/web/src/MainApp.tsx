@@ -63,6 +63,12 @@ export default function MainApp() {
     <App
       authenticatedEmail={session.user.email}
       authenticatedName={session.profile.display_name}
+      accessToken={session.access_token}
+      onProfileUpdated={(profile) => {
+        setSession((current) =>
+          current ? { ...current, profile } : current
+        );
+      }}
       onLogout={logout}
     />
   );

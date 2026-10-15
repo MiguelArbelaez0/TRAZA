@@ -346,3 +346,18 @@ h1 { margin-bottom: 8px; color: #202b3d; font: 800 clamp(22px, 2.1vw, 29px)/1.25
   .auth-content { padding: 14px; }
   .auth-card { padding: 20px 16px; }
 }
+
+
+
+/* Edici?n del perfil profesional */
+.profile-edit-form label { display: flex; flex-direction: column; gap: 7px; margin: 13px 0; color: #647087; font-size: 12px; }
+.profile-edit-form input,
+.profile-edit-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #dfe4ef; border-radius: 8px; padding: 10px 11px; color: #263653; background: #fff; font: inherit; font-size: 13px; }
+.profile-edit-form textarea { resize: vertical; min-height: 100px; }
+.profile-edit-form input:focus,
+.profile-edit-form textarea:focus { outline: 2px solid #cbd2ff; border-color: #5965ed; }
+.profile-feedback { margin: 12px 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.profile-feedback.success { color: #16835f; }
+.profile-feedback.error { color: #c24141; }
+.profile-edit-form button:disabled,
+.profile-details button:disabled { opacity: .6; cursor: not-allowed; }
