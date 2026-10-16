@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowDownRight, ArrowRight, Award,
   Bell, BriefcaseBusiness, Check, ChevronDown,
@@ -13,13 +13,45 @@ type Section =
   | "Competencias" | "Evidencias" | "Portafolio";
 
 type Experience = {
-  id: number;
+  id: string | number;
   title: string;
   organization: string;
   period: string;
   description: string;
   type: string;
 };
+
+
+function mapApiExperience(item: ApiExperience): Experience {
+  const formatDate = (value: string) =>
+    new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString("es-CO", {
+      month: "short",
+      year: "numeric",
+    });
+
+  const period = item.is_current
+    ? `${formatDate(item.start_date)} ? Actualidad`
+    : item.end_date
+      ? `${formatDate(item.start_date)} ? ${formatDate(item.end_date)}`
+      : formatDate(item.start_date);
+
+  const labels: Record<string, string> = {
+    project: "Proyecto",
+    work: "Laboral",
+    academic: "Acad?mica",
+    volunteer: "Voluntariado",
+    other: "Otra",
+  };
+
+  return {
+    id: item.id,
+    title: item.title,
+    organization: item.organization || "Sin organizaci?n",
+    period,
+    description: item.description || "Sin descripci?n.",
+    type: labels[item.experience_type] || "Experiencia",
+  };
+}
 
 const navigation: { label: Section; icon: typeof LayoutDashboard }[] = [
   { label: "Inicio", icon: LayoutDashboard },
@@ -56,7 +88,7 @@ const initialSkills = [
   { name: "Trabajo colaborativo", category: "Transversal", level: 85 },
 ];
 
-import { authApi, type AuthProfile } from "./authApi";
+import { authApi, type AuthProfile, type Experience as ApiExperience } from "./authApi";
 
 type AppProps = {
   authenticatedEmail?: string;
@@ -102,12 +134,35 @@ function App({
 
 
   useEffect(() => {
+    if (!accessToken) return;
+
+    let cancelled = false;
+
+    authApi.listExperiences(accessToken)
+      .then((items) => {
+        if (!cancelled) {
+          setExperiences(items.map(mapApiExperience));
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setNotice(
+            error instanceof Error
+              ? `No fue posible cargar las experiencias: ${error.message}`
+              : "No fue posible cargar las experiencias."
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
     if (section !== "Mi perfil" || !accessToken) return;
 
     let cancelled = false;
-    setProfileLoading(true);
-    setProfileLoaded(false);
-    setProfileFeedback("");
 
     authApi.getProfile(accessToken)
       .then((profile) => {
@@ -126,7 +181,7 @@ function App({
         setProfileFeedback(
           error instanceof Error
             ? error.message
-            : "No fue posible cargar el perfil. Comprueba tu conexi?n e int?ntalo de nuevo."
+            : "No fue posible cargar el perfil. Comprueba tu conexión e inténtalo de nuevo."
         );
         setProfileFeedbackType("error");
       })
@@ -156,9 +211,9 @@ function App({
     try {
       const updated = await authApi.updateProfile(accessToken, {
         display_name: name,
-        headline: profileForm.headline.trim() || null,
-        professional_summary: profileForm.professional_summary.trim() || null,
-        location: profileForm.location.trim() || null,
+        headline: profileForm.headline?.trim() || null,
+        professional_summary: profileForm.professional_summary?.trim() || null,
+        location: profileForm.location?.trim() || null,
       });
 
       setProfileData(updated);
@@ -176,7 +231,7 @@ function App({
       setProfileFeedback(
         error instanceof Error
           ? error.message
-          : "No fue posible guardar los cambios. Int?ntalo de nuevo."
+          : "No fue posible guardar los cambios. Inténtalo de nuevo."
       );
       setProfileFeedbackType("error");
     } finally {
@@ -197,23 +252,59 @@ function App({
     window.setTimeout(() => setNotice(""), 3200);
   };
 
-  function addExperience(event: React.FormEvent<HTMLFormElement>) {
+  async function addExperience(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!experienceTitle.trim() || !experienceOrganization.trim()) return;
 
-    setExperiences((current) => [{
-      id: Date.now(),
-      title: experienceTitle.trim(),
-      organization: experienceOrganization.trim(),
-      period: "2026 — Actualidad",
-      description: "Experiencia de demostración agregada desde la interfaz.",
-      type: "Proyecto",
-    }, ...current]);
+    const title = experienceTitle.trim();
+    const organization = experienceOrganization.trim();
 
-    setExperienceTitle("");
-    setExperienceOrganization("");
-    setShowExperienceForm(false);
-    notify("Experiencia agregada a los datos de demostración.");
+    if (!title || !organization) return;
+
+    if (!accessToken) {
+      setExperiences((current) => [{
+        id: Date.now(),
+        title,
+        organization,
+        period: "2026 ? Actualidad",
+        description: "Experiencia de demostraci?n agregada desde la interfaz.",
+        type: "Proyecto",
+      }, ...current]);
+
+      setExperienceTitle("");
+      setExperienceOrganization("");
+      setShowExperienceForm(false);
+      notify("Experiencia agregada al modo de demostraci?n.");
+      return;
+    }
+
+    try {
+      const created = await authApi.createExperience(accessToken, {
+        experience_type: "project",
+        title,
+        organization,
+        description: null,
+        start_date: new Date().toISOString().slice(0, 10),
+        end_date: null,
+        is_current: true,
+        visibility: "private",
+      });
+
+      setExperiences((current) => [
+        mapApiExperience(created),
+        ...current.filter((item) => item.id !== created.id),
+      ]);
+
+      setExperienceTitle("");
+      setExperienceOrganization("");
+      setShowExperienceForm(false);
+      notify("Experiencia guardada correctamente.");
+    } catch (error: unknown) {
+      notify(
+        error instanceof Error
+          ? `No fue posible guardar la experiencia: ${error.message}`
+          : "No fue posible guardar la experiencia."
+      );
+    }
   }
 
   function addSkill(event: React.FormEvent<HTMLFormElement>) {
@@ -440,7 +531,7 @@ function App({
                   </span>
                   <h2>{profileData?.display_name || authenticatedName || "Mi perfil profesional"}</h2>
                   <p className="profile-role">
-                    {profileData?.headline || "A?ade tu titular profesional"}
+                    {profileData?.headline || "Añade tu titular profesional"}
                   </p>
                   <p className="profile-description">
                     {profileData?.professional_summary || "Presenta tu trayectoria, tus intereses y los proyectos que demuestran lo que sabes hacer."}
@@ -470,8 +561,8 @@ function App({
               <section className="panel profile-progress">
                 <div className="panel-heading">
                   <div>
-                    <h3>{profileEditing ? "Editar informaci?n" : "Estado del perfil"}</h3>
-                    <p>{profileEditing ? "Actualiza tus datos profesionales" : "Pasos para completar tu presentaci?n"}</p>
+                    <h3>{profileEditing ? "Editar información" : "Estado del perfil"}</h3>
+                    <p>{profileEditing ? "Actualiza tus datos profesionales" : "Pasos para completar tu presentación"}</p>
                   </div>
                 </div>
 
@@ -505,10 +596,10 @@ function App({
                       />
                     </label>
                     <label>
-                      Ubicaci?n
+                      Ubicación
                       <input
                         maxLength={160}
-                        placeholder="Ciudad, pa?s"
+                        placeholder="Ciudad, país"
                         value={profileForm.location || ""}
                         onChange={(event) => setProfileForm({ ...profileForm, location: event.target.value })}
                       />
@@ -570,10 +661,10 @@ function App({
                       </p>
                     )}
                     {[
-                      ["Informaci?n b?sica", Boolean(profileData?.display_name)],
+                      ["Información básica", Boolean(profileData?.display_name)],
                       ["Titular profesional", Boolean(profileData?.headline)],
                       ["Resumen profesional", Boolean(profileData?.professional_summary)],
-                      ["Ubicaci?n", Boolean(profileData?.location)],
+                      ["Ubicación", Boolean(profileData?.location)],
                       ["Experiencias registradas", experiences.length > 0],
                       ["Competencias identificadas", skills.length > 0],
                     ].map(([label, done]) => (

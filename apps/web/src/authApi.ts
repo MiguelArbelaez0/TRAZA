@@ -21,15 +21,51 @@ export type AuthResponse = {
   profile: AuthProfile;
 };
 
+export type ExperienceType =
+  | "project"
+  | "work"
+  | "academic"
+  | "volunteer"
+  | "other";
+
+export type ExperienceVisibility = "private" | "unlisted" | "public";
+
+export type Experience = {
+  id: string;
+  experience_type: ExperienceType;
+  title: string;
+  organization: string | null;
+  description: string | null;
+  start_date: string;
+  end_date: string | null;
+  is_current: boolean;
+  visibility: ExperienceVisibility;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExperienceCreate = {
+  experience_type: ExperienceType;
+  title: string;
+  organization?: string | null;
+  description?: string | null;
+  start_date: string;
+  end_date?: string | null;
+  is_current: boolean;
+  visibility: ExperienceVisibility;
+};
+
+export type ExperienceUpdate = Partial<ExperienceCreate>;
+
 const API_URL = (
   import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
 
 async function request<T>(
   path: string,
-  body?: Record<string, string | null>,
+  body?: object,
   token?: string,
-  method: "GET" | "POST" | "PATCH" = body ? "POST" : "GET",
+  method: "GET" | "POST" | "PATCH" | "DELETE" = body ? "POST" : "GET",
 ): Promise<T> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -60,10 +96,14 @@ async function request<T>(
             .join(" ");
         }
       } catch {
-        // Conserva el mensaje HTTP si la respuesta no contiene JSON.
+        // La respuesta puede no contener JSON.
       }
 
       throw new Error(message);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return (await response.json()) as T;
@@ -114,5 +154,44 @@ export const authApi = {
 
   updateProfile(token: string, profile: Omit<AuthProfile, "id">) {
     return request<AuthProfile>("/api/profile/me", profile, token, "PATCH");
+  },
+
+  listExperiences(token: string) {
+    return request<Experience[]>("/api/experiences", undefined, token);
+  },
+
+  getExperience(token: string, id: string) {
+    return request<Experience>(
+      `/api/experiences/${encodeURIComponent(id)}`,
+      undefined,
+      token,
+    );
+  },
+
+  createExperience(token: string, experience: ExperienceCreate) {
+    return request<Experience>(
+      "/api/experiences",
+      experience,
+      token,
+      "POST",
+    );
+  },
+
+  updateExperience(token: string, id: string, changes: ExperienceUpdate) {
+    return request<Experience>(
+      `/api/experiences/${encodeURIComponent(id)}`,
+      changes,
+      token,
+      "PATCH",
+    );
+  },
+
+  deleteExperience(token: string, id: string) {
+    return request<void>(
+      `/api/experiences/${encodeURIComponent(id)}`,
+      undefined,
+      token,
+      "DELETE",
+    );
   },
 };

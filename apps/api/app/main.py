@@ -1,4 +1,5 @@
-﻿from fastapi import FastAPI
+﻿from app.api.routes.experiences import router as experiences_router
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.auth import router as auth_router
@@ -22,14 +23,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS", "PATCH"],
+    allow_methods=["GET", "POST", "OPTIONS", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(profile_router)
-
+app.include_router(experiences_router)
 
 @app.get("/", tags=["Root"])
 def root() -> dict[str, str]:
